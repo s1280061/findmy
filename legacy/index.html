@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FindMy Home - 家のカメラで持ち物を探す</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>📍 FindMy Home</h1>
+    <p class="subtitle">家のカメラで持ち物を探す</p>
+  </header>
+
+  <div id="model-status" class="model-status">
+    <span class="spinner"></span> AIモデルを読み込み中...
+  </div>
+
+  <main>
+    <!-- カメラ映像 -->
+    <section class="camera-section">
+      <div class="video-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div id="camera-error" class="camera-error hidden">
+          ⚠️ カメラにアクセスできません。<br>ブラウザのカメラ許可を確認してください。
+        </div>
+      </div>
+      <div class="camera-controls">
+        <label>📷 カメラ:
+          <select id="camera-select"></select>
+        </label>
+      </div>
+    </section>
+
+    <!-- タブ -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="find">🔍 探す</button>
+      <button class="tab" data-tab="register">➕ 登録</button>
+      <button class="tab" data-tab="items">📦 アイテム</button>
+    </nav>
+
+    <!-- 探すタブ -->
+    <section id="tab-find" class="tab-panel">
+      <div class="find-controls">
+        <button id="btn-find" class="btn-primary btn-big" disabled>🔍 探す</button>
+        <label class="auto-scan">
+          <input type="checkbox" id="auto-scan"> 連続スキャン（2秒ごと）
+        </label>
+        <label class="threshold-row">
+          判定のきびしさ: <span id="threshold-val">70</span>%
+          <input type="range" id="threshold" min="50" max="90" value="70">
+        </label>
+      </div>
+      <div id="scan-status" class="scan-status"></div>
+      <div id="find-results" class="find-results"></div>
+    </section>
+
+    <!-- 登録タブ -->
+    <section id="tab-register" class="tab-panel hidden">
+      <p class="hint">枠の中にアイテムを映して、角度を変えながら <b>3回以上</b> 撮影してください。</p>
+      <div class="register-form">
+        <div class="icon-row">
+          <span>アイコン:</span>
+          <div class="icon-choices">
+            <button class="icon-btn active" data-icon="🎧">🎧</button>
+            <button class="icon-btn" data-icon="📱">📱</button>
+            <button class="icon-btn" data-icon="👛">👛</button>
+            <button class="icon-btn" data-icon="🔑">🔑</button>
+            <button class="icon-btn" data-icon="⌚">⌚</button>
+            <button class="icon-btn" data-icon="🎮">🎮</button>
+          </div>
+        </div>
+        <input type="text" id="item-name" placeholder="アイテム名（例: AirPods）" maxlength="20">
+        <div class="capture-row">
+          <button id="btn-capture" class="btn-secondary" disabled>📸 撮影</button>
+          <button id="btn-save-item" class="btn-primary" disabled>💾 保存（あと3枚）</button>
+        </div>
+        <div id="captured-shots" class="captured-shots"></div>
+      </div>
+    </section>
+
+    <!-- アイテムタブ -->
+    <section id="tab-items" class="tab-panel hidden">
+      <div id="item-list" class="item-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>データはすべてこの端末（ブラウザ）内に保存されます。サーバーには送信されません。</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

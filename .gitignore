@@ -1,0 +1,19 @@
+# Next.js / Node (フロントエンド)
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+
+# Python エージェント (agent/)
+agent/__pycache__/
+agent/*.onnx
+agent/items.json
+.venv/
+__pycache__/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
