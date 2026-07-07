@@ -80,6 +80,15 @@ export async function embedCenter(s: Settings): Promise<{ embedding: number[]; t
   return res.json();
 }
 
+// スマホ等で撮影した画像を送って埋め込みを計算してもらう（登録用）
+export async function embedImageUpload(
+  s: Settings,
+  imageDataUrl: string
+): Promise<{ embedding: number[]; thumb: string }> {
+  const res = await req(s, "/embed_image", { method: "POST", body: JSON.stringify({ image: imageDataUrl }) });
+  return res.json();
+}
+
 export async function listItems(s: Settings): Promise<ItemSummary[]> {
   const res = await req(s, "/items");
   return res.json();

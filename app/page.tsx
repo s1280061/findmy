@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addItem,
   deleteItem,
-  embedCenter,
-  fetchSnapshot,
+  embedImageUpload,
   health,
   listItems,
   loadSettings,
@@ -234,74 +233,7 @@ function FindTab({
   );
 }
 
-// ---------- ライブプレビュー（登録用） ----------
-
-function LivePreview({ settings, active }: { settings: Settings; active: boolean }) {
-  const [src, setSrc] = useState("");
-  const [guide, setGuide] = useState<{ left: number; top: number; w: number; h: number } | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  useEffect(() => {
-    if (!active) return;
-    let stopped = false;
-    let prev = "";
-    const tick = async () => {
-      try {
-        const url = await fetchSnapshot(settings);
-        if (stopped) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-        if (prev) URL.revokeObjectURL(prev);
-        prev = url;
-        setSrc(url);
-      } catch {}
-    };
-    tick();
-    const timer = setInterval(tick, 1500);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-      if (prev) URL.revokeObjectURL(prev);
-    };
-  }, [settings, active]);
-
-  // 中央ガイド枠（短辺の60%）の位置を画像アスペクトから計算
-  const onLoad = () => {
-    const img = imgRef.current;
-    if (!img || !img.naturalWidth) return;
-    const W = img.naturalWidth,
-      H = img.naturalHeight;
-    const size = Math.min(W, H) * 0.6;
-    setGuide({
-      left: ((W - size) / 2 / W) * 100,
-      top: ((H - size) / 2 / H) * 100,
-      w: (size / W) * 100,
-      h: (size / H) * 100,
-    });
-  };
-
-  return (
-    <div className="relative overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: "16/9" }}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img ref={imgRef} src={src} onLoad={onLoad} alt="カメラ映像" className="h-full w-full object-contain" />
-      ) : (
-        <div className="flex h-full items-center justify-center text-sm text-slate-500">
-          カメラ映像を取得中...
-        </div>
-      )}
-      {guide && src && (
-        <div
-          className="absolute border-4 border-dashed border-blue-400"
-          style={{ left: `${guide.left}%`, top: `${guide.top}%`, width: `${guide.w}%`, height: `${guide.h}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ---------- 登録 ----------
+// ---------- 登録（スマホのカメラで撮影） ----------
 
 function RegisterTab({
   settings,
@@ -317,12 +249,49 @@ function RegisterTab({
   const [shots, setShots] = useState<{ embedding: number[]; thumb: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [camError, setCamError] = useState("");
+  const [camReady, setCamReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
+  // スマホの背面カメラを起動（HTTPS必須。Vercel/localhostならOK）
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          setCamReady(true);
+        }
+      } catch {
+        setCamError("カメラを起動できません。ブラウザのカメラ許可を確認してください。");
+      }
+    })();
+    return () => {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  // 現在のフレームを中央正方形で切り出し → エージェントで埋め込み計算
   const capture = async () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
     setBusy(true);
     setError("");
     try {
-      const shot = await embedCenter(settings);
+      const w = video.videoWidth,
+        h = video.videoHeight;
+      const side = Math.min(w, h);
+      const c = document.createElement("canvas");
+      c.width = side;
+      c.height = side;
+      c.getContext("2d")!.drawImage(video, (w - side) / 2, (h - side) / 2, side, side, 0, 0, side, side);
+      const dataUrl = c.toDataURL("image/jpeg", 0.85);
+      const shot = await embedImageUpload(settings, dataUrl);
       setShots((s) => [...s, shot]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "撮影に失敗しました");
@@ -360,9 +329,25 @@ function RegisterTab({
   return (
     <div className="space-y-4">
       <p className="text-sm leading-relaxed text-slate-400">
-        カメラの前（青い枠の中）にアイテムを置いて、角度を変えながら <b className="text-slate-200">3回以上</b> 撮影してください。
+        <b className="text-slate-200">スマホのカメラ</b>で持ち物を枠いっぱいに映し、角度を変えながら{" "}
+        <b className="text-slate-200">3回以上</b> 撮影してください。（探すのは家のカメラ、登録はこのスマホで撮ります）
       </p>
-      <LivePreview settings={settings} active={connected} />
+
+      {/* スマホカメラのライブプレビュー（正方形＝撮影範囲） */}
+      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-2xl bg-black">
+        <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+        {camReady && <div className="pointer-events-none absolute inset-3 rounded-xl border-4 border-dashed border-blue-400" />}
+        {camError && (
+          <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-red-400">
+            {camError}
+          </div>
+        )}
+        {!camReady && !camError && (
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
+            カメラを起動中...
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-2 text-sm text-slate-400">
         アイコン:
@@ -390,7 +375,7 @@ function RegisterTab({
       <div className="flex gap-3">
         <button
           onClick={capture}
-          disabled={!connected || busy}
+          disabled={!connected || busy || !camReady}
           className="flex-1 rounded-xl bg-[#232e45] py-3 font-bold disabled:opacity-40"
         >
           📸 撮影
@@ -404,6 +389,11 @@ function RegisterTab({
         </button>
       </div>
 
+      {!connected && (
+        <p className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-400">
+          ⚠️ エージェント未接続です。「⚙️設定」でURL・APIキーを設定してください。
+        </p>
+      )}
       {error && <p className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-400">⚠️ {error}</p>}
 
       {shots.length > 0 && (

@@ -223,11 +223,39 @@ async def snapshot(_=Depends(check_key)):
 
 @app.post("/embed_center")
 async def embed_center(_=Depends(check_key)):
-    """中央ガイド枠を撮影して埋め込みとサムネイルを返す（登録用）"""
+    """中央ガイド枠を撮影して埋め込みとサムネイルを返す（家のカメラで登録する場合）"""
     frame = camera.read()
     h, w = frame.shape[:2]
     x, y, size = center_guide_rect(w, h)
     crop = cv2.resize(frame[y:y + size, x:x + size], (CROP, CROP))
+    emb = embed_batch([crop])[0]
+    thumb = cv2.resize(crop, (96, 96))
+    return {
+        "embedding": [round(float(v), 4) for v in emb],
+        "thumb": to_data_url(thumb, quality=70),
+    }
+
+
+class EmbedImageIn(BaseModel):
+    image: str  # dataURL または base64（スマホで撮影した画像）
+
+
+@app.post("/embed_image")
+async def embed_image_upload(body: EmbedImageIn, _=Depends(check_key)):
+    """アップロードされた画像（スマホ撮影）を中央正方形で切り抜き埋め込みを返す（登録用）"""
+    data = body.image.split(",", 1)[1] if "," in body.image else body.image
+    try:
+        raw = base64.b64decode(data)
+        arr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    except Exception:
+        img = None
+    if img is None:
+        raise HTTPException(400, "画像を読み込めません")
+    h, w = img.shape[:2]
+    side = min(h, w)
+    y0, x0 = (h - side) // 2, (w - side) // 2
+    crop = cv2.resize(img[y0:y0 + side, x0:x0 + side], (CROP, CROP))
     emb = embed_batch([crop])[0]
     thumb = cv2.resize(crop, (96, 96))
     return {
