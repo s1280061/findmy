@@ -11,6 +11,7 @@ next-env.d.ts
 agent/__pycache__/
 agent/*.onnx
 agent/items.json
+agent/run-secure.bat
 .venv/
 __pycache__/
 

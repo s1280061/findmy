@@ -53,7 +53,23 @@ cloudflared tunnel --url http://localhost:8300
 # → https://xxxx-xxxx.trycloudflare.com のようなURLが発行される
 ```
 
-> **同じWi-Fi内だけで使う**なら公開は不要。`http://<PCのIPアドレス>:8300` を使えばOK。
+> **同じWi-Fi内だけ**でも、Vercel(HTTPS)から `http://<IP>:8300` へは「混在コンテンツ」でブロックされます。外出先・社内から使うなら下記のトンネル(HTTPS)方式が必要です。
+
+#### 外出先・会社から使う手順（cloudflared + APIキー）
+
+インターネット公開になるため、必ずAPIキーで保護します。
+
+1. **cloudflared をインストール**（Windows）:
+   ```powershell
+   winget install --id Cloudflare.cloudflared -e
+   ```
+2. **APIキー付きでエージェント起動**: `agent/run-secure.bat` をダブルクリック
+   （`FINDMY_API_KEY` を設定した起動スクリプト。キーを含むのでGit管理外）
+3. **トンネル起動**: `agent/tunnel.bat` をダブルクリック → 黒いウィンドウに
+   `https://xxxx.trycloudflare.com` のURLが出る（この窓は開いたままにする）
+4. そのURLとAPIキーを、スマホのアプリ「⚙️設定」に入力
+
+> ⚠️ 無料の一時トンネルは**再起動のたびにURLが変わります**。変わったらアプリの設定URLを更新してください。固定URLが必要なら Cloudflare の named tunnel（要アカウント＋ドメイン）に移行できます。
 
 ### 3. Web（フロント）をVercelにデプロイ
 
